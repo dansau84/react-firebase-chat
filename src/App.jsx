@@ -5,7 +5,7 @@ import Login from "./components/login/Login";
 import "./index.css";
 
 const App = () => {
-  const user = true; // ponelo en true para ver el chat, false para ver el login
+  const user = false; // ponelo en true para ver el chat, false para ver el login
 
   return (
     <div className="container">
