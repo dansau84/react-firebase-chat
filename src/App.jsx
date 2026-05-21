@@ -1,15 +1,25 @@
-import List from "./components/list/List"
-import Chat from "./components/chat/Chat"
-import Detail from "./components/detail/Detail"
+import List from "./components/list/List";
+import Chat from "./components/chat/Chat";
+import Detail from "./components/detail/Detail";
+import Login from "./components/login/Login";
+import "./index.css";
 
 const App = () => {
-  return (
-    <div className='container'>
-      <List/>
-      <Chat/>
-      <Detail/>
-    </div>
-  )
-}
+  const user = true; // ponelo en true para ver el chat, false para ver el login
 
-export default App
+  return (
+    <div className="container">
+      {user ? (
+        <>
+          <List />
+          <Chat />
+          <Detail />
+        </>
+      ) : (
+        <Login />
+      )}
+    </div>
+  );
+};
+
+export default App;
