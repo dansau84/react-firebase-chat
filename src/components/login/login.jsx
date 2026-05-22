@@ -2,10 +2,12 @@ import { useState } from "react";
 import "./login.css";
 import { toast } from "react-toastify";
 import Notification from "../notification/Notification";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../lib/firebase"; // ✅ ruta corregida
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { auth, db } from "../lib/firebase"; 
+import { doc, setDoc } from "firebase/firestore";
+import upload from "../lib/upload";
 
-const Login = () => {
+const Login = ({ setUser }) => {
   const [avatar, setAvatar] = useState({ file: null, url: "" });
 
   const handleAvatar = (e) => {
@@ -15,9 +17,18 @@ const Login = () => {
     }
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    toast.success("Sign In successful!");
+    const formData = new FormData(e.target);
+    const { email, password } = Object.fromEntries(formData);
+
+    try {
+      const res = await signInWithEmailAndPassword(auth, email, password);
+      toast.success("Sign In successful!");
+      setUser(res.user);
+    } catch (error) {
+      toast.error(error.message);
+    }
   };
 
   const handleRegister = async (e) => {
@@ -27,9 +38,25 @@ const Login = () => {
 
     try {
       const res = await createUserWithEmailAndPassword(auth, email, password);
-      toast.success("Sign Up successful!");
-      console.log("User created:", res.user);
-      console.log("Username:", username);
+      
+      // Espera a que la foto se suba a Firebase Storage y nos dé su URL pública
+      const imgUrl = await upload(avatar.file);
+
+      // Crea el documento del usuario en Firestore vinculando la URL de la imagen
+      await setDoc(doc(db, "users", res.user.uid), {
+        username,
+        email,
+        avatar: imgUrl,
+        id: res.user.uid,
+        blocked: [],
+      });
+
+      await setDoc(doc(db, "userchats", res.user.uid), {
+        chats: [],
+      });
+
+      toast.success("Cuenta creada!");
+      setUser(res.user);
     } catch (error) {
       toast.error(error.message);
     }

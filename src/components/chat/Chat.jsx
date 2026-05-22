@@ -1,25 +1,75 @@
 import "./chat.css";
 import { useState, useRef, useEffect } from "react"; 
 import EmojiPicker from "emoji-picker-react";
+import { db } from "../lib/firebase";
+import { 
+  collection, 
+  addDoc, 
+  query, 
+  orderBy, 
+  onSnapshot, 
+  serverTimestamp, 
+  setDoc, 
+  doc 
+} from "firebase/firestore";
 
-const Chat = () => {
+const Chat = ({ user, selectedChat }) => {
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState(""); // <-- faltaba este estado
+  const [text, setText] = useState("");
+  const [messages, setMessages] = useState([]);
+
+  const endRef = useRef(null);
+
+  // cargar historial en tiempo real
+  useEffect(() => {
+    if (!selectedChat) return;
+    const q = query(
+      collection(db, "chats", selectedChat.id, "messages"),
+      orderBy("createdAt")
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsub();
+  }, [selectedChat]);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleEmoji = (emojiData) => {
     setText((prev) => prev + emojiData.emoji);
     setOpen(false);
   };
-  console.log(text);
 
+  const handleSend = async () => {
+    if (!text.trim() || !selectedChat) return;
 
-  const endRef = useRef(null);
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+    // guardar mensaje en Firestore
+    await addDoc(collection(db, "chats", selectedChat.id, "messages"), {
+      text,
+      sender: user.uid,
+      createdAt: serverTimestamp(),
+    });
 
+    // actualizar último mensaje en la lista de chats del usuario actual
+    await setDoc(doc(db, "userchats", user.uid, "chats", selectedChat.id), {
+      ...selectedChat,
+      lastMessage: text,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
 
+    // actualizar último mensaje en la lista del otro usuario
+    if (selectedChat.otherUserId) {
+      await setDoc(doc(db, "userchats", selectedChat.otherUserId, "chats", selectedChat.id), {
+        ...selectedChat,
+        lastMessage: text,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    }
 
+    setText("");
+  };
 
   return (
     <div className="chat">
@@ -27,51 +77,27 @@ const Chat = () => {
         <div className="user">
           <img src="./avatar.png" alt="" />
           <div className="texts">
-            <span>Jane Doe</span>
-            <p>this is just a text...</p>
+            <span>{selectedChat?.username || "Select a chat"}</span>
+            <p>Chatting...</p>
           </div>
-        </div>
-        <div className="icons">
-          <img src="./phone.png" alt="" />
-          <img src="./video.png" alt="" />
-          <img src="./info.png" alt="" />
         </div>
       </div>
 
       <div className="center">
-
-<div className="message own">
-    <div className="texts">
-    <p>Hello</p>
-    <span>just now</span>
-  </div>
-</div>
-
-<div className="message">
-  <img src="./avatar.png" alt="" />
-  <div className="texts">
-    <p>Hello how are you?</p>
-    <span>1 min ago</span>
-  </div>
-</div>
-
-<div className="message own">
-   <div className="texts">
-    <p>find and you?</p>
-    <span>5 sec ago</span>
-  </div>
-</div>
-
-<div className="message">
-  <img src="./avatar.png" alt="" />
-  <div className="texts">
-    <p>find too</p>
-    <span>just now</span>
-  </div>
-</div>
-
-<div ref={endRef}></div>
-
+        {messages.map((m) => (
+          <div key={m.id} className={`message ${m.sender === user.uid ? "own" : ""}`}>
+            {m.sender !== user.uid && <img src="./avatar.png" alt="" />}
+            <div className="texts">
+              <p>{m.text}</p>
+              <span>
+                {m.createdAt?.seconds
+                  ? new Date(m.createdAt.seconds * 1000).toLocaleTimeString()
+                  : ""}
+              </span>
+            </div>
+          </div>
+        ))}
+        <div ref={endRef}></div>
       </div>
 
       <div className="bottom">
@@ -94,7 +120,7 @@ const Chat = () => {
           />
           {open && <EmojiPicker onEmojiClick={handleEmoji} />}
         </div>
-        <button className="sendButton">Send</button>
+        <button className="sendButton" onClick={handleSend}>Send</button>
       </div>
     </div>
   );
