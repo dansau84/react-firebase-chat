@@ -1,11 +1,16 @@
 import "./userinfo.css";
+import { useUserStore } from "../../lib/userStore"; // <-- Importamos el hook de Zustand
 
 const Userinfo = () => {
+
+const {currentUser}=useUserStore();  
+
+
   return (
     <div className="userinfo">
       <div className="user">
-        <img src="./avatar.png" alt="" />
-        <h2>John Doe</h2>
+        <img src={currentUser.avatar ||"./avatar.png"} alt="" />
+        <h2>{currentUser?.username || "User"}</h2>
       </div>
 
       <div className="icons">

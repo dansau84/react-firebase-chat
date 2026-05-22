@@ -6,9 +6,13 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "fire
 import { auth, db } from "../lib/firebase"; 
 import { doc, setDoc } from "firebase/firestore";
 import upload from "../lib/upload";
+import { useUserStore } from "../lib/userStore"; // ✅ importamos Zustand
 
-const Login = ({ setUser }) => {
+const Login = () => {
   const [avatar, setAvatar] = useState({ file: null, url: "" });
+  const [loading, setLoading] = useState(false);
+
+  const { fetchuserinfo } = useUserStore(); // ✅ usamos el store
 
   const handleAvatar = (e) => {
     if (e.target.files.length > 0) {
@@ -19,30 +23,33 @@ const Login = ({ setUser }) => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    
     const formData = new FormData(e.target);
     const { email, password } = Object.fromEntries(formData);
 
     try {
       const res = await signInWithEmailAndPassword(auth, email, password);
       toast.success("Sign In successful!");
-      setUser(res.user);
+      await fetchuserinfo(res.user.uid); // ✅ actualizamos Zustand
     } catch (error) {
       toast.error(error.message);
-    }
+    } finally {
+      setLoading(false);
+    } 
   };
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    setLoading(true);
     const formData = new FormData(e.target);
     const { username, email, password } = Object.fromEntries(formData);
 
     try {
       const res = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Espera a que la foto se suba a Firebase Storage y nos dé su URL pública
       const imgUrl = await upload(avatar.file);
 
-      // Crea el documento del usuario en Firestore vinculando la URL de la imagen
       await setDoc(doc(db, "users", res.user.uid), {
         username,
         email,
@@ -56,20 +63,22 @@ const Login = ({ setUser }) => {
       });
 
       toast.success("Cuenta creada!");
-      setUser(res.user);
+      await fetchuserinfo(res.user.uid); // ✅ actualizamos Zustand
     } catch (error) {
       toast.error(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="login">
       <div className="item">
-        <h2>Welcome to Chat App</h2>
+        <h2>Welcome Back</h2>
         <form onSubmit={handleLogin}>
           <input type="text" placeholder="Email" name="email" />
           <input type="password" placeholder="Password" name="password" />
-          <button type="submit">Sign In</button>
+          <button disabled={loading} type="submit">{loading ? "Loading..." : "Login"}</button>
         </form>
       </div>
 
@@ -91,7 +100,7 @@ const Login = ({ setUser }) => {
           <input type="text" placeholder="Username" name="username" />
           <input type="text" placeholder="Email" name="email" />
           <input type="password" placeholder="Password" name="password" />
-          <button type="submit">Sign Up</button>
+          <button disabled={loading} type="submit">{loading ? "Loading..." : "Sign up"}</button>
         </form>
       </div>
 

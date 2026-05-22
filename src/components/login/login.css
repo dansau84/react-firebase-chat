@@ -66,3 +66,7 @@ button {
   cursor: pointer;
   font-weight: 500;
 }
+button:disabled {
+  background-color: rgba(89, 92, 98, 0.3);
+  cursor: not-allowed;
+}
