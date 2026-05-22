@@ -1,3 +1,4 @@
+/*
 import { useState } from "react";
 import "./login.css";
 import { toast } from "react-toastify";
@@ -6,13 +7,26 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "fire
 import { auth, db } from "../lib/firebase"; 
 import { doc, setDoc } from "firebase/firestore";
 import upload from "../lib/upload";
-import { useUserStore } from "../lib/userStore"; // ✅ importamos Zustand
+import { useUserStore } from "../lib/userStore"; // ✅ importamos Zustand  */
+
+import { useState } from "react";
+import "./login.css";
+import { toast } from "react-toastify";
+import Notification from "../notification/Notification";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+
+// CORRECCIÓN DE RUTAS: Subimos dos niveles (../../) para entrar a 'lib' correctamente
+import { auth, db } from "../../components/lib/firebase"; 
+import { doc, setDoc } from "firebase/firestore";
+import upload from "../../components/lib/upload";
+import { useUserStore } from "../../components/lib/userStore"; 
 
 const Login = () => {
   const [avatar, setAvatar] = useState({ file: null, url: "" });
   const [loading, setLoading] = useState(false);
 
-  const { fetchuserinfo } = useUserStore(); // ✅ usamos el store
+  // FIX 1: Cambiado a CamelCase 'fetchUserInfo'
+  const { fetchUserInfo } = useUserStore(); 
 
   const handleAvatar = (e) => {
     if (e.target.files.length > 0) {
@@ -30,8 +44,9 @@ const Login = () => {
 
     try {
       const res = await signInWithEmailAndPassword(auth, email, password);
+      // Primero actualizamos el store de Zustand y esperamos a que termine
+      await fetchUserInfo(res.user.uid); // FIX 2: Cambiado a CamelCase 'fetchUserInfo'
       toast.success("Sign In successful!");
-      await fetchuserinfo(res.user.uid); // ✅ actualizamos Zustand
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -62,8 +77,9 @@ const Login = () => {
         chats: [],
       });
 
+      // Primero actualizamos el store de Zustand y esperamos a que termine
+      await fetchUserInfo(res.user.uid); // FIX 3: Cambiado a CamelCase 'fetchUserInfo'
       toast.success("Cuenta creada!");
-      await fetchuserinfo(res.user.uid); // ✅ actualizamos Zustand
     } catch (error) {
       toast.error(error.message);
     } finally {

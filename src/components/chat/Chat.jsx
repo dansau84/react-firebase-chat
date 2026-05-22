@@ -2,98 +2,81 @@ import "./chat.css";
 import { useState, useRef, useEffect } from "react"; 
 import EmojiPicker from "emoji-picker-react";
 import { db } from "../lib/firebase";
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  orderBy, 
-  onSnapshot, 
-  serverTimestamp, 
-  setDoc, 
-  doc 
-} from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, arrayUnion } from "firebase/firestore";
+import { useChatStore } from "../lib/chatStore"; // <-- ¡Faltaba importar!
+import { useUserStore } from "../lib/userStore"; // <-- ¡Necesario para saber quién envía!
 
-const Chat = ({ user, selectedChat }) => {
+const Chat = () => {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
-  const [messages, setMessages] = useState([]);
+  const [chat, setChat] = useState(null); // <-- Corregido setChat con 'C' mayúscula
+  
+  const { chatId, user } = useChatStore();
+  const { currentUser } = useUserStore();
 
   const endRef = useRef(null);
 
-  // cargar historial en tiempo real
-  useEffect(() => {
-    if (!selectedChat) return;
-    const q = query(
-      collection(db, "chats", selectedChat.id, "messages"),
-      orderBy("createdAt")
-    );
-    const unsub = onSnapshot(q, (snapshot) => {
-      setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-    return () => unsub();
-  }, [selectedChat]);
-
+  // Auto-scroll al recibir mensajes
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [chat?.messages]);
 
-  const handleEmoji = (emojiData) => {
-    setText((prev) => prev + emojiData.emoji);
+  // Cargar historial de chat en tiempo real desde Firestore
+  useEffect(() => {
+    if (!chatId) return;
+
+    const unSub = onSnapshot(doc(db, "chats", chatId), (res) => {
+      setChat(res.data());
+    });
+
+    return () => {
+      unSub();
+    };
+  }, [chatId]);
+
+  const handleEmoji = (e) => {
+    setText((prev) => prev + e.emoji);
     setOpen(false);
   };
 
+  // Función para enviar mensajes a Firestore
   const handleSend = async () => {
-    if (!text.trim() || !selectedChat) return;
+    if (text.trim() === "") return;
 
-    // guardar mensaje en Firestore
-    await addDoc(collection(db, "chats", selectedChat.id, "messages"), {
-      text,
-      sender: user.uid,
-      createdAt: serverTimestamp(),
-    });
+    try {
+      await updateDoc(doc(db, "chats", chatId), {
+        messages: arrayUnion({
+          senderId: currentUser.id,
+          text,
+          createdAt: new Date(),
+        }),
+      });
 
-    // actualizar último mensaje en la lista de chats del usuario actual
-    await setDoc(doc(db, "userchats", user.uid, "chats", selectedChat.id), {
-      ...selectedChat,
-      lastMessage: text,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-
-    // actualizar último mensaje en la lista del otro usuario
-    if (selectedChat.otherUserId) {
-      await setDoc(doc(db, "userchats", selectedChat.otherUserId, "chats", selectedChat.id), {
-        ...selectedChat,
-        lastMessage: text,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
+      setText("");
+    } catch (err) {
+      console.log(err);
     }
-
-    setText("");
   };
 
   return (
     <div className="chat">
       <div className="top">
         <div className="user">
-          <img src="./avatar.png" alt="" />
+          <img src={user?.avatar || "./avatar.png"} alt="" />
           <div className="texts">
-            <span>{selectedChat?.username || "Select a chat"}</span>
+            <span>{user?.username || "Select a chat"}</span>
             <p>Chatting...</p>
           </div>
         </div>
       </div>
 
       <div className="center">
-        {messages.map((m) => (
-          <div key={m.id} className={`message ${m.sender === user.uid ? "own" : ""}`}>
-            {m.sender !== user.uid && <img src="./avatar.png" alt="" />}
+        {chat?.messages?.map((m, index) => (
+          <div key={index} className={`message ${m.senderId === currentUser.id ? "own" : ""}`}>
+            {m.senderId !== currentUser.id && <img src={user?.avatar || "./avatar.png"} alt="" />}
             <div className="texts">
               <p>{m.text}</p>
-              <span>
-                {m.createdAt?.seconds
-                  ? new Date(m.createdAt.seconds * 1000).toLocaleTimeString()
-                  : ""}
-              </span>
+              <span>Hace un momento</span>
             </div>
           </div>
         ))}

@@ -2,14 +2,14 @@ import { create } from "zustand";
 import { db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 
-const useUserStore = create((set) => ({
+// EXPORTACIÓN ÚNICA: Solo usamos el export inline
+export const useUserStore = create((set) => ({
   currentUser: null,
-  isloading: true,
+  isLoading: true,
 
-  
-  fetchuserinfo: async (uid) => {
+  fetchUserInfo: async (uid) => {
     if (!uid) {
-      return set({ currentUser: null, isloading: false });
+      return set({ currentUser: null, isLoading: false }); // Corregido camelCase
     }
 
     try {
@@ -17,15 +17,13 @@ const useUserStore = create((set) => ({
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
-        set({ currentUser: docSnap.data(), isloading: false });
+        set({ currentUser: docSnap.data(), isLoading: false }); // Corregido camelCase
       } else {
-        set({ currentUser: null, isloading: false });
+        set({ currentUser: null, isLoading: false }); // Corregido camelCase
       }
     } catch (err) {
       console.log(err);
-      set({ currentUser: null, isloading: false });
+      set({ currentUser: null, isLoading: false }); // Corregido camelCase
     }
   },
 }));
-
-export { useUserStore };
