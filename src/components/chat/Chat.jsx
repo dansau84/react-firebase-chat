@@ -1,16 +1,25 @@
+import upload from "../lib/upload";       // ✅ correcto
+
+
+import { useUserStore } from "../lib/userStore";
 import "./chat.css";
-import { useState, useRef, useEffect } from "react"; 
+import { db, storage } from "../lib/firebase";
+import { doc, onSnapshot, updateDoc, arrayUnion, getDoc } from "firebase/firestore";
+import { useChatStore } from "../lib/chatStore";
+
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import EmojiPicker from "emoji-picker-react";
-import { db } from "../../components/lib/firebase"; // Ajustado a la ruta real de tu proyecto
-import { doc, onSnapshot, updateDoc, arrayUnion, getDoc } from "firebase/firestore"; // Añadido getDoc faltante
-import { useChatStore } from "../../components/lib/chatStore"; 
-import { useUserStore } from "../../components/lib/userStore"; 
+import { useState, useRef, useEffect } from "react";
+
+       
+
 
 const Chat = () => {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
-  const [chat, setChat] = useState(null); 
-  
+  const [chat, setChat] = useState(null);
+  const [img, setImg] = useState({ file: null, url: "" });
+
   const { chatId, user } = useChatStore();
   const { currentUser } = useUserStore();
 
@@ -21,17 +30,15 @@ const Chat = () => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat?.messages]);
 
-  // Cargar historial de chat en tiempo real desde Firestore
+  // Cargar historial de chat en tiempo real
   useEffect(() => {
     if (!chatId) return;
-
     const unSub = onSnapshot(doc(db, "chats", chatId), (res) => {
-      setChat(res.data());
+      if (res.exists()) {
+        setChat(res.data());
+      }
     });
-
-    return () => {
-      unSub();
-    };
+    return () => unSub();
   }, [chatId]);
 
   const handleEmoji = (e) => {
@@ -39,38 +46,51 @@ const Chat = () => {
     setOpen(false);
   };
 
-  // Función para enviar mensajes a Firestore (Sintaxis corregida)
+  const handleImg = (e) => {
+    if (e.target.files[0]) {
+      setImg({
+        file: e.target.files[0],
+        url: URL.createObjectURL(e.target.files[0]),
+      });
+    }
+  };
+
   const handleSend = async () => {
-    if (text.trim() === "") return;
+    if (!chatId) return;
+    if (!text.trim() && !img.file) return; // no enviar vacío
 
     try {
-      // 1. Añadir el mensaje a la colección "chats"
+      let imgUrl = null;
+      if (img.file) {
+        imgUrl = await upload(img.file); // tu función upload a storage
+      }
+
+      // 1. Agregar mensaje al array de mensajes en chats/{chatId}
       await updateDoc(doc(db, "chats", chatId), {
         messages: arrayUnion({
           senderId: currentUser.id,
           text,
-          createdAt: new Date(),
+          img: imgUrl || null,
+          createdAt: Date.now(),
         }),
       });
 
-      // 2. Actualizar los estados de userchats para ambos usuarios
+      // 2. Actualizar último mensaje en userchats para ambos usuarios
       const userIDs = [currentUser.id, user.id];
-
-      // Cambiado a for...of porque forEach no maneja correctamente promesas async/await en ciclos
       for (const id of userIDs) {
-        const userChatsRef = doc(db, "userchats", id); // Unificado nombre de colección a minúscula estándar
+        const userChatsRef = doc(db, "userchats", id);
         const userChatsSnapshot = await getDoc(userChatsRef);
 
         if (userChatsSnapshot.exists()) {
           const userChatsData = userChatsSnapshot.data();
-
           const chatIndex = userChatsData.chats.findIndex(
             (c) => c.chatId === chatId
           );
 
           if (chatIndex !== -1) {
-            userChatsData.chats[chatIndex].lastMessage = text;
-            userChatsData.chats[chatIndex].isSeen = id === currentUser.id ? true : false;
+            userChatsData.chats[chatIndex].lastMessage = text || "📷 Photo";
+            userChatsData.chats[chatIndex].isSeen =
+              id === currentUser.id ? true : false;
             userChatsData.chats[chatIndex].updatedAt = Date.now();
 
             await updateDoc(userChatsRef, {
@@ -80,9 +100,11 @@ const Chat = () => {
         }
       }
 
-      setText(""); // Limpiar el input tras enviar
+      // limpiar inputs
+      setText("");
+      setImg({ file: null, url: "" });
     } catch (err) {
-      console.log(err);
+      console.error("Error sending message:", err);
     }
   };
 
@@ -99,25 +121,43 @@ const Chat = () => {
       </div>
 
       <div className="center">
-        {chat?.messages?.map((message) => (
-          <div 
-            className={`message ${message.senderId === currentUser.id ? "own" : ""}`} 
-            key={message?.createdAt?.seconds || message?.createdAt}
+        {chat?.messages?.map((message, idx) => (
+          <div
+            className={`message ${
+              message.senderId === currentUser.id ? "own" : ""
+            }`}
+            key={idx}
           >
             <div className="texts">
-              {message.img && <img src={message.img} alt="" />}
-              <p>{message.text}</p>
+              {message.img && <img src={message.img} alt="attachment" />}
+              {message.text && <p>{message.text}</p>}
             </div>
           </div>
         ))}
+
+        {img.url && (
+          <div className="message own">
+            <div className="texts">
+              <img src={img.url} alt="preview" />
+            </div>
+          </div>
+        )}
         <div ref={endRef}></div>
       </div>
 
       <div className="bottom">
         <div className="icons">
-          <img src="./img.png" alt="" />
-          <img src="./camera.png" alt="" />
-          <img src="./mic.png" alt="" />
+          <label htmlFor="file">
+            <img src="./img.png" alt="attach" />
+          </label>
+          <input
+            type="file"
+            id="file"
+            style={{ display: "none" }}
+            onChange={handleImg}
+          />
+          <img src="./camera.png" alt="camera" />
+          <img src="./mic.png" alt="mic" />
         </div>
         <input
           type="text"
@@ -128,12 +168,14 @@ const Chat = () => {
         <div className="emoji">
           <img
             src="./emoji.png"
-            alt=""
+            alt="emoji"
             onClick={() => setOpen((prev) => !prev)}
           />
           {open && <EmojiPicker onEmojiClick={handleEmoji} />}
         </div>
-        <button className="sendButton" onClick={handleSend}>Send</button>
+        <button className="sendButton" onClick={handleSend}>
+          Send
+        </button>
       </div>
     </div>
   );

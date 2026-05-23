@@ -15,9 +15,7 @@ import {
 import { useUserStore } from "../../../lib/userStore";
 
 const AddUser = () => {
-  // ✅ obtenemos el usuario logeado desde Zustand
   const { currentUser } = useUserStore();
-  // ✅ estado para el usuario encontrado
   const [foundUser, setFoundUser] = useState(null);
 
   const handleSearch = async (e) => {
@@ -31,7 +29,8 @@ const AddUser = () => {
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
-        setFoundUser(querySnapshot.docs[0].data());
+        const docSnap = querySnapshot.docs[0];
+        setFoundUser({ ...docSnap.data(), id: docSnap.id });
       } else {
         setFoundUser(null);
       }
@@ -47,14 +46,12 @@ const AddUser = () => {
       const chatRef = collection(db, "chats");
       const userchatRef = collection(db, "userchats");
 
-      // crear nuevo chat
       const newChatRef = doc(chatRef);
       await setDoc(newChatRef, {
         createdAt: serverTimestamp(),
         members: [currentUser.id, foundUser.id],
       });
 
-      // actualizar userchats del usuario actual
       await updateDoc(doc(userchatRef, currentUser.id), {
         chats: arrayUnion({
           chatId: newChatRef.id,
@@ -64,7 +61,6 @@ const AddUser = () => {
         }),
       });
 
-      // actualizar userchats del usuario agregado
       await updateDoc(doc(userchatRef, foundUser.id), {
         chats: arrayUnion({
           chatId: newChatRef.id,
@@ -75,7 +71,7 @@ const AddUser = () => {
       });
 
       console.log("Chat creado con:", foundUser.username);
-      setFoundUser(null); // limpiar búsqueda
+      setFoundUser(null);
     } catch (err) {
       console.error("Error adding user to chat:", err);
     }
@@ -101,4 +97,4 @@ const AddUser = () => {
   );
 };
 
-export default AddUser;
+export default AddUser;   // ✅ exportación correcta

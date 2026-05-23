@@ -46,4 +46,4 @@ export const useChatStore = create((set) => ({
       isReceiverBlocked: !state.isReceiverBlocked,
     }));
   },
-}));
+})); 
