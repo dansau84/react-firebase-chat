@@ -133,6 +133,11 @@
   padding: 12px;
   font-size: 16px;
 }
+.chat .bottom input:disabled {
+  background-color: rgba(17,25,40,0.2);
+  cursor: not-allowed;
+}
+
 
 .emoji {
   position: relative;
@@ -161,4 +166,10 @@
   border: none;
   border-radius: 5px;
   cursor: pointer;
+}
+
+
+.sendButton:disabled {
+  background-color: rgba(17, 25, 40, 0.2);
+  cursor: not-allowed;
 }

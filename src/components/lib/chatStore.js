@@ -3,18 +3,21 @@ import { db } from "./firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useUserStore } from "./userStore";
 
+
+
 export const useChatStore = create((set) => ({
   chatId: null,
   user: null,
   isCurrentUserBlocked: false,
   isReceiverBlocked: false,
 
-  // FIX: Cambiado a minúscula 'changeChat' para que coincida con tus componentes
   changeChat: (chatId, user) => {
     const currentUser = useUserStore.getState().currentUser;
 
-    // CHECK IF CURRENT USER IS BLOCKED
-    if (user.blocked.includes(currentUser.uid)) {
+    if (!user || !currentUser) return;
+
+    // 1. CHEQUEAR SI EL USUARIO DESTINO TE TIENE BLOQUEADO A TI
+    if (user.blocked?.includes(currentUser.id)) {
       return set({
         chatId,
         user: null,
@@ -22,8 +25,8 @@ export const useChatStore = create((set) => ({
         isReceiverBlocked: false,
       });
     }
-    // CHECK IF RECEIVER IS BLOCKED
-    else if (currentUser.blocked.includes(user.uid)) {
+    // 2. CHEQUEAR SI TÚ TIENES BLOQUEADO AL USUARIO DESTINO
+    else if (currentUser.blocked?.includes(user.id)) {
       return set({
         chatId,
         user,
@@ -40,10 +43,19 @@ export const useChatStore = create((set) => ({
     }
   },
 
+  resetChat: () => {
+    set({
+      chatId: null,
+      user: null,
+      isCurrentUserBlocked: false,
+      isReceiverBlocked: false,
+    });
+  },
+
   changeBlock: () => {
     set((state) => ({
       ...state,
       isReceiverBlocked: !state.isReceiverBlocked,
     }));
   },
-})); 
+}));
